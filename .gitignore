@@ -120,3 +120,5 @@ templates/*.html
 
 # Pycharm
 .idea/
+.configuration.ini
+

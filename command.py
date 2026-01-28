@@ -4,7 +4,7 @@ import secrets
 import datetime
 import json
 import re
-import pymumble_py3 as pymumble
+import mumble
 
 from constants import tr_cli as tr
 from constants import commands
@@ -146,7 +146,7 @@ def cmd_joinme(bot, user, text, command, parameter):
     global log
 
     bot.mumble.users.myself.move_in(
-        bot.mumble.users[text.actor]['channel_id'], token=parameter)
+        bot.mumble.users[text.actor].channel_id, token=parameter)
 
 
 def cmd_user_ban(bot, user, text, command, parameter):
@@ -680,7 +680,7 @@ def cmd_volume(bot, user, text, command, parameter):
     if parameter and parameter.isdigit() and 0 <= int(parameter) <= 100:
         if int(parameter) <= max_vol:
             vol = int(parameter)
-            bot.send_msg(tr('change_volume', volume=int(parameter), user=bot.mumble.users[text.actor]['name']), text)
+            bot.send_msg(tr('change_volume', volume=int(parameter), user=bot.mumble.users[text.actor].name), text)
         else:
             vol = max_vol
             bot.send_msg(tr('max_volume', max=int(vol)), text)
@@ -696,7 +696,7 @@ def cmd_max_volume(bot, user, text, command, parameter):
     if parameter and parameter.isdigit() and 0 <= int(parameter) <= 100:
         max_vol = float(parameter) / 100.0
         var.db.set('bot', 'max_volume', float(parameter) / 100.0)
-        bot.send_msg(tr('change_max_volume', max=parameter, user=bot.mumble.users[text.actor]['name']), text)
+        bot.send_msg(tr('change_max_volume', max=parameter, user=bot.mumble.users[text.actor].name), text)
         if int(bot.volume_helper.plain_volume_set) > max_vol:
             bot.volume_helper.set_volume(max_vol)
         log.info(f'cmd: max volume set to {max_vol}')
@@ -712,14 +712,13 @@ def cmd_ducking(bot, user, text, command, parameter):
     if parameter == "" or parameter == "on":
         bot.is_ducking = True
         var.db.set('bot', 'ducking', True)
-        bot.mumble.callbacks.set_callback(pymumble.constants.PYMUMBLE_CLBK_SOUNDRECEIVED, bot.ducking_sound_received)
-        bot.mumble.set_receive_sound(True)
+        bot.mumble.callbacks.sound_received.set_handler(bot.ducking_sound_received)
         log.info('cmd: ducking is on')
         msg = "Ducking on."
         bot.send_msg(msg, text)
     elif parameter == "off":
         bot.is_ducking = False
-        bot.mumble.set_receive_sound(False)
+        bot.mumble.callbacks.sound_received.clear_handler()
         var.db.set('bot', 'ducking', False)
         msg = "Ducking off."
         log.info('cmd: ducking is off')
@@ -745,7 +744,7 @@ def cmd_ducking_volume(bot, user, text, command, parameter):
     # The volume is a percentage
     if parameter and parameter.isdigit() and 0 <= int(parameter) <= 100:
         bot.volume_helper.set_ducking_volume(float(parameter) / 100.0)
-        bot.send_msg(tr('change_ducking_volume', volume=parameter, user=bot.mumble.users[text.actor]['name']), text)
+        bot.send_msg(tr('change_ducking_volume', volume=parameter, user=bot.mumble.users[text.actor].name), text)
         var.db.set('bot', 'ducking_volume', float(parameter) / 100.0)
         log.info(f'cmd: volume on ducking set to {parameter}')
     else:
@@ -919,7 +918,7 @@ def cmd_mode(bot, user, text, command, parameter):
         var.playlist = media.playlist.get_playlist(parameter, var.playlist)
         log.info(f"command: playback mode changed to {parameter}.")
         bot.send_msg(tr("change_mode", mode=var.playlist.mode,
-                                  user=bot.mumble.users[text.actor]['name']), text)
+                                  user=bot.mumble.users[text.actor].name), text)
         if parameter == "random":
             bot.interrupt()
 

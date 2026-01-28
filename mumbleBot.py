@@ -7,13 +7,13 @@ import sys
 import math
 import signal
 import configparser
-import audioop
+import numpy as np
 import subprocess as sp
 import argparse
 import os
 import os.path
-import pymumble_py3 as pymumble
-import pymumble_py3.constants
+import mumble
+import mumble.constants
 import variables as var
 import logging
 import logging.handlers
@@ -114,22 +114,22 @@ class MumbleBot:
         else:
             self.bandwidth = var.config.getint("bot", "bandwidth")
 
-        self.mumble = pymumble.Mumble(host, user=self.username, port=port, password=password, tokens=tokens,
+        self.mumble = mumble.Mumble(host, user=self.username, port=port, password=password, tokens=tokens,
                                       stereo=self.stereo,
                                       debug=var.config.getboolean('debug', 'mumble_connection'),
                                       certfile=certificate)
-        self.mumble.callbacks.set_callback(pymumble.constants.PYMUMBLE_CLBK_TEXTMESSAGERECEIVED, self.message_received)
+        self.mumble.callbacks.text_message_received.set_handler(self.message_received)
 
         self.mumble.set_codec_profile("audio")
         self.mumble.start()  # start the mumble thread
-        self.mumble.is_ready()  # wait for the connection
+        self.mumble.wait_until_connected()  # wait for the connection
 
-        if self.mumble.connected >= pymumble.constants.PYMUMBLE_CONN_STATE_FAILED:
+        if self.mumble.connected >= mumble.constants.CONN_STATE.FAILED:
             exit()
 
         self.set_comment()
         self.set_avatar()
-        self.mumble.users.myself.unmute()  # by sure the user is not muted
+        self.mumble.users.myself.self_mute = False  # ensure the user is not muted
         self.join_channel()
         self.mumble.set_bandwidth(self.bandwidth)
 
@@ -166,9 +166,7 @@ class MumbleBot:
         if not var.db.has_option("bot", "ducking") and var.config.getboolean("bot", "ducking") \
                 or var.config.getboolean("bot", "ducking"):
             self.is_ducking = True
-            self.mumble.callbacks.set_callback(pymumble.constants.PYMUMBLE_CLBK_SOUNDRECEIVED,
-                                               self.ducking_sound_received)
-            self.mumble.set_receive_sound(True)
+            self.mumble.callbacks.sound_received.set_handler(self.ducking_sound_received)
 
         assert var.config.get("bot", "when_nobody_in_channel") in ['pause', 'pause_resume', 'stop', 'nothing', ''], \
             "Unknown action for when_nobody_in_channel"
@@ -177,8 +175,8 @@ class MumbleBot:
             user_change_callback = \
                 lambda user, action: threading.Thread(target=self.users_changed,
                                                       args=(user, action), daemon=True).start()
-            self.mumble.callbacks.set_callback(pymumble.constants.PYMUMBLE_CLBK_USERREMOVED, user_change_callback)
-            self.mumble.callbacks.set_callback(pymumble.constants.PYMUMBLE_CLBK_USERUPDATED, user_change_callback)
+            self.mumble.callbacks.user_removed.set_handler(user_change_callback)
+            self.mumble.callbacks.user_updated.set_handler(user_change_callback)
 
         # Debug use
         self._loop_status = 'Idle'
@@ -243,16 +241,16 @@ class MumbleBot:
                 self.log.debug("bot: command added: " + command)
 
     def set_comment(self):
-        self.mumble.users.myself.comment(var.config.get('bot', 'comment'))
+        self.mumble.users.myself.comment = var.config.get('bot', 'comment')
 
     def set_avatar(self):
         avatar_path = var.config.get('bot', 'avatar')
 
         if avatar_path:
             with open(avatar_path, 'rb') as avatar_file:
-                self.mumble.users.myself.texture(avatar_file.read())
+                self.mumble.users.myself.texture = avatar_file.read()
         else:
-            self.mumble.users.myself.texture(b'')
+            self.mumble.users.myself.texture = b''
 
     def join_channel(self):
         if self.channel:
@@ -274,7 +272,7 @@ class MumbleBot:
             # It doesn't have a valid "actor". Simply ignore it here.
             return
 
-        user = self.mumble.users[text.actor]['name']
+        user = self.mumble.users[text.actor].name
 
         if var.config.getboolean('commands', 'split_username_at_space'):
             # in can you use https://github.com/Natenom/mumblemoderator-module-collection/tree/master/os-suffixes ,
@@ -343,7 +341,7 @@ class MumbleBot:
                 if not self.cmd_handle[command_exc]['access_outside_channel'] \
                         and not self.is_admin(user) \
                         and not var.config.getboolean('bot', 'allow_other_channel_message') \
-                        and self.mumble.users[text.actor]['channel_id'] != self.mumble.users.myself['channel_id']:
+                        and self.mumble.users[text.actor].channel_id != self.mumble.users.myself.channel_id:
                     self.mumble.users[text.actor].send_text_message(
                         tr('not_in_my_channel'))
                     return
@@ -362,7 +360,7 @@ class MumbleBot:
 
     def send_channel_msg(self, msg):
         msg = msg.encode('utf-8', 'ignore').decode('utf-8')
-        own_channel = self.mumble.channels[self.mumble.users.myself['channel_id']]
+        own_channel = self.mumble.channels[self.mumble.users.myself.channel_id]
         own_channel.send_text_message(msg)
 
     @staticmethod
@@ -379,10 +377,10 @@ class MumbleBot:
 
     def get_user_count_in_channel(self):
         # Get the channel, based on the channel id
-        own_channel = self.mumble.channels[self.mumble.users.myself['channel_id']]
+        own_channel = self.mumble.channels[self.mumble.users.myself.channel_id]
 
         # Build set of unique usernames
-        users = set([user.get_property("name") for user in own_channel.get_users()])
+        users = set([user.name for user in own_channel.get_users()])
 
         # Exclude all bots from the set of usernames
         users = users.difference(self.bots)
@@ -511,9 +509,9 @@ class MumbleBot:
     def loop(self):
         while not self.exit and self.mumble.is_alive():
 
-            while self.thread and self.mumble.sound_output.get_buffer_size() > 0.5 and not self.exit:
+            while self.thread and self.mumble.send_audio.get_buffer_size() > 0.5 and not self.exit:
                 # If the buffer isn't empty, I cannot send new music part, so I wait
-                self._loop_status = f'Wait for buffer {self.mumble.sound_output.get_buffer_size():.3f}'
+                self._loop_status = f'Wait for buffer {self.mumble.send_audio.get_buffer_size():.3f}'
                 time.sleep(0.01)
 
             raw_music = None
@@ -541,14 +539,14 @@ class MumbleBot:
                     self.volume_cycle()
 
                     if not self.on_interrupting and len(raw_music) == self.pcm_buffer_size:
-                        self.mumble.sound_output.add_sound(
-                            audioop.mul(raw_music, 2, self.volume_helper.real_volume))
+                        self.mumble.send_audio.add_sound(
+                            self._audio_mul(raw_music, self.volume_helper.real_volume))
                     elif self.read_pcm_size == 0:
-                        self.mumble.sound_output.add_sound(
-                            audioop.mul(self._fadeout(raw_music, self.stereo, fadein=True), 2, self.volume_helper.real_volume))
+                        self.mumble.send_audio.add_sound(
+                            self._audio_mul(self._fadeout(raw_music, self.stereo, fadein=True), self.volume_helper.real_volume))
                     elif self.on_interrupting or len(raw_music) < self.pcm_buffer_size:
-                        self.mumble.sound_output.add_sound(
-                            audioop.mul(self._fadeout(raw_music, self.stereo, fadein=False), 2, self.volume_helper.real_volume))
+                        self.mumble.send_audio.add_sound(
+                            self._audio_mul(self._fadeout(raw_music, self.stereo, fadein=False), self.volume_helper.real_volume))
                         self.thread.kill()
                         self.thread = None
                         time.sleep(0.1)
@@ -612,7 +610,7 @@ class MumbleBot:
                     else:
                         self.wait_for_ready = False
 
-        while self.mumble.sound_output.get_buffer_size() > 0 and self.mumble.is_alive():
+        while self.mumble.send_audio.get_buffer_size() > 0 and self.mumble.is_alive():
             # Empty the buffer before exit
             time.sleep(0.01)
         time.sleep(0.5)
@@ -643,7 +641,7 @@ class MumbleBot:
             self.last_volume_cycle_time = time.time()
 
     def ducking_sound_received(self, user, sound):
-        rms = audioop.rms(sound.pcm, 2)
+        rms = self._audio_rms(sound.pcm)
         self._max_rms = max(rms, self._max_rms)
         if self._display_rms:
             if rms < self.ducking_threshold:
@@ -657,6 +655,26 @@ class MumbleBot:
                 self.log.debug("bot: ducking triggered")
                 self.on_ducking = True
             self.ducking_release = time.time() + 1  # ducking release after 1s
+
+    @staticmethod
+    def _audio_mul(data: bytes, factor: float) -> bytes:
+        # Convert bytes to numpy array of 16-bit signed integers
+        samples = np.frombuffer(data, dtype=np.int16).astype(np.float32)
+        # Apply volume factor
+        samples = samples * factor
+        # Clip to prevent overflow and convert back to int16
+        samples = np.clip(samples, -32768, 32767).astype(np.int16)
+        return samples.tobytes()
+
+    @staticmethod
+    def _audio_rms(data: bytes) -> int:
+        if len(data) == 0:
+            return 0
+        # Convert bytes to numpy array of 16-bit signed integers
+        samples = np.frombuffer(data, dtype=np.int16).astype(np.float64)
+        # Calculate RMS: sqrt(mean(samples^2))
+        rms = np.sqrt(np.mean(samples ** 2))
+        return int(rms)
 
     def _fadeout(self, _pcm_data, stereo=False, fadein=False):
         pcm_data = bytearray(_pcm_data)
