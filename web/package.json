@@ -9,14 +9,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/azlux/botamusique.git"
+    "url": "git+https://github.com/ElRizeru/botamusique.git"
   },
-  "author": "azlux",
+  "author": "azlux (Original), ElRizeru (Fork)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/azlux/botamusique/issues"
+    "url": "https://github.com/ElRizeru/botamusique/issues"
   },
-  "homepage": "https://github.com/azlux/botamusique#readme",
+  "homepage": "https://github.com/ElRizeru/botamusique#readme",
   "devDependencies": {
     "@babel/core": "^7.12.9",
     "@babel/eslint-parser": "^7.12.1",

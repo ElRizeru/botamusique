@@ -1,29 +1,3 @@
-# Important Announcement
-
-Hello everyone,
-
-First, let's look at the problems:
-1. I don't use mumble anymore, working on a bot you don't use produces a leak of testing and motivation.
-2. I don't code like before, my hobbies have changed, I maintain stuff I still use, but no real coding anymore.
-3. Botamusique is monolitique
-
-I've been trying to make a POC to change the monolitique part, to have a fully modulable bot, with asyncio and and feature/backend as plugins. But asyncio was blocking for me, especially to make the bot with fastapi, discord api / pymumble. It's 2 async loop and I don't have the knowledge to make it work.
-To be transparent, botamusique was the biggest project I've done, one of the funniest. Thanks @TerryGeng for joining the adventure.
-
-I don't think I will be looking for a maintainer, the monolithic part of this project is not something that needs to be maintained.
-
-**This projet will be archived.**
-
-BUT If someone want to rewrite a bot, I'm ready to help with the projet : what to do, Errors to avoid, Design/architecture help (but no code). I think **_8 years_** on this projet (have start with [this small projet](https://github.com/azlux/MumbleRadioPlayer/commit/56ca276c5519fcb0e1af043beb043202e65c2cca)) can help someone.
-
-It was really funny, thank all, for your support !
-
-See you in space cowboy.
-
--- Azlux
-
------
-
 <div align="center">
 <img src="static/image/logo.png" alt="botamusique" width="200px" />
 <h1>botamusique</h1>
@@ -32,13 +6,11 @@ See you in space cowboy.
 Botamusique is a [Mumble](https://www.mumble.info/) music bot.
 Predicted functionalities will be those people would expect from any classic music player.
 
-[![Build Status](https://ci.azlux.fr/api/badges/azlux/botamusique/status.svg)](https://ci.azlux.fr/azlux/botamusique)
-
 ## Features
 
 1. **Support multiple music sources:**
     - Music files in local folders (which can be uploaded through the web interface).
-    - Youtube/Soundcloud URLs and playlists (everything supported by youtube-dl).
+    - Youtube/Soundcloud URLs and playlists (everything supported by yt-dlp).
     - Radio stations from URL and http://www.radio-browser.info API.
 2. **Modern and powerful web remote control interface.** Powered by Flask. Which supports:
     - Playlist management.
@@ -61,70 +33,36 @@ Predicted functionalities will be those people would expect from any classic mus
 1. [Configuration](#configuration)
 1. [Run the bot](#run-the-bot)
 1. [Operate the bot](#operate-the-bot)
-1. [Update](#update)
 1. [Known issues](#known-issues)
 1. [Contributors](#contributors)
 
 ## Installation
 
 ### Dependencies
-1. Install python. We require a python version of 3.6 or higher.
-1. Install [Opus Codec](https://www.opus-codec.org/) (which should be already installed if you installed Mumble or Murmur, or you may try to install `opus-tools` with your package manager).
-1. Install ffmpeg. If ffmpeg isn't in your package manager, you may need to find another source. I personally use [this repository](http://repozytorium.mati75.eu/) on my raspberry.
+1. Install python. We require a python version of 3.8 or higher.
+2. Install [Opus Codec](https://www.opus-codec.org/) (usually `libopus0` or `opus-tools` in your package manager).
+3. Install ffmpeg.
 
 
 ### Docker
-See https://github.com/azlux/botamusique/wiki/Docker-install
-
-Both stable and nightly (developing) builds are available!
+```bash
+docker build -t botamusique .
+docker run -it -v $(pwd)/configuration.ini:/botamusique/configuration.ini botamusique
+```
 
 ### Manual install
 
-**Stable release (recommended)**
-
-This is current stable version, with auto-update support. To install the stable release, run these lines in your terminal:
-```
-curl -Lo botamusique.tar.gz http://packages.azlux.fr/botamusique/sources-stable.tar.gz
-tar -xzf botamusique.tar.gz
+```bash
+git clone https://github.com/ElRizeru/botamusique.git
 cd botamusique
 python3 -m venv venv
-venv/bin/pip install wheel
-venv/bin/pip install -r requirements.txt
-```
-
-**Nightly build (developing version)**
-<details>
-  <summary>Click to expand!</summary>
-
-This build reflects any newest change in the master branch, with auto-update support baked in. This version follow all commits into the master branch.
-```
-curl -Lo botamusique.tar.gz http://packages.azlux.fr/botamusique/sources-testing.tar.gz
-tar -xzf botamusique.tar.gz
-cd botamusique
-python3 -m venv venv
-venv/bin/pip install wheel
-venv/bin/pip install -r requirements.txt
-```
-</details>
-
-**Build from source code**
-<details>
-  <summary>Click to expand!</summary>
-
-You can checkout the master branch of our repo and compile everything by yourself.
-We will test new features in the master branch, maybe sometimes post some hotfixes.
-Please be noted that the builtin auto-update support doesn't track this version.
-If you have no idea what these descriptions mean to you, we recommend you install the stable version above.
-```
-git clone https://github.com/azlux/botamusique.git
-cd botamusique
-python3 -m venv venv
-venv/bin/pip install wheel
-venv/bin/pip install -r requirements.txt
+source venv/bin/activate
+pip install -r requirements.txt
+# Optional: build the web interface if you want to use it
 (cd web && npm install && npm run build)
-venv/bin/python3 ./scripts/translate_templates.py --lang-dir lang/ --template-dir web/templates/
+python3 ./scripts/translate_templates.py --lang-dir lang/ --template-dir web/templates/
 ```
-</details>
+
 
 ## Configuration
 Please copy `configuration.example.ini` into `configuration.ini`, follow the instructions in that file and uncomment options you would like to modify. Not all sections are needed. You may just keep the options that matter to you. For example, if you only would like to set `host`, all you need you is keep 
@@ -226,16 +164,11 @@ The web interface can be used if you'd like an intuitive way of interacting with
 
 ## Update
 
-If you enable `auto_check_update`, the bot will check for updates every time it starts.
-If you are using the recommended install, you can send `!update` to the bot (command by default).
-
-If you are using git, you need to update manually:
-```
-git pull --all
-git submodule update
+To update the bot, pull the latest changes from the repository and update the dependencies:
+```bash
+git pull
 venv/bin/pip install --upgrade -r requirements.txt
 ```
-
 
 ## Known issues
 
@@ -262,12 +195,12 @@ brew install libmagic
 ```
 One may also install `python-magic-bin` instead of `python-magic`.
 
-5. If you have a large amount of music files (>1000), it may take some time for the bot to boot, since
+4. If you have a large amount of music files (>1000), it may take some time for the bot to boot, since
 it will build up the cache for the music library on booting. You may want to disable this auto-scanning by
 setting ``refresh_cache_on_startup=False`` in `[bot]` section and control the scanning manually by
 ``!rescan`` command and the *Rescan Files* button on the web interface.
 
-6. Alpine Linux requires some extra dependencies during the installation (in order to compile Pillow):
+5. Alpine Linux requires some extra dependencies during the installation (in order to compile Pillow):
 ```
 python3-dev musl-lib libmagic jpeg-dev zlib-dev gcc
 ```
@@ -275,18 +208,14 @@ For more information, see [#122](https://github.com/azlux/botamusique/issues/122
 
 ## _I need help!_
 
-If you ran into some problems in using the bot, or discovered bugs and want to talk to us, you may
-
- - Start a new issue,
- - Ask in the Matrix channel of Mumble [#mumble:matrix.org](https://matrix.to/#/#mumble:matrix.org) (we are usually there to help).
+If you ran into some problems in using the bot, or discovered bugs, please start a new issue on GitHub.
 
 ## Contributors
-If you want to help us develop, you're welcome to fork and submit pull requests (fixes and new features).
-We are looking for people helping us translating the bot. If you'd like to add a new language or fix errors in existed translations,
-feel free to catch us in the IRC channel #mumble, or just email us!
-
-The following people joined as collaborators for a faster development, big thanks to them:
+This project is a fork of the original [botamusique](https://github.com/azlux/botamusique) by Azlux.
+Big thanks to all original contributors:
+- @Azlux
 - @TerryGeng
 - @mertkutay
+- and many others!
 
-Feel free to ask me if you want to help actively without using pull requests.
+Maintained by @ElRizeru.

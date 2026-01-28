@@ -1,5 +1,5 @@
 ARG ARCH=
-FROM python:3.11-slim-bullseye AS python-builder
+FROM python:3.13-slim AS python-builder
 ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /botamusique
 
@@ -11,7 +11,7 @@ RUN python3 -m venv venv \
     && venv/bin/pip install wheel \
     && venv/bin/pip install -r requirements.txt
 
-FROM python:3.11-slim-bullseye
+FROM python:3.13-slim
 ENV DEBIAN_FRONTEND noninteractive
 EXPOSE 8181
 RUN apt update && \
