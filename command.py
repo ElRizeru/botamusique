@@ -419,11 +419,18 @@ def cmd_play_playlist(bot, user, text, command, parameter):
     if url:
         log.debug(f"cmd: fetching media info from playlist url {url}")
         items = get_playlist_info(url=url, start_index=offset, user=user)
-        if len(items) > 0:
-            items = var.playlist.extend(list(map(lambda item: get_cached_wrapper_from_scrap(**item), items)))
-            for music in items:
-                log.info("cmd: add to playlist: " + music.format_debug_string())
-        else:
+        
+        count = 0
+        try:
+            for item in items:
+                music_wrapper = get_cached_wrapper_from_scrap(**item)
+                var.playlist.append(music_wrapper)
+                log.info("cmd: add to playlist: " + music_wrapper.format_debug_string())
+                count += 1
+        except Exception as e:
+            log.error("cmd: error while adding items from playlist: %s", e)
+            
+        if count == 0:
             bot.send_msg(tr("playlist_fetching_failed"), text)
     else:
         bot.send_msg(tr('bad_parameter', command=command), text)

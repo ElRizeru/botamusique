@@ -127,7 +127,13 @@ class URLItem(BaseItem):
     def _get_info_from_url(self):
         self.log.info("url: fetching metadata of url %s " % self.url)
         ydl_opts = {
-            'noplaylist': True
+            'noplaylist': True,
+            'js_runtimes': {'node': {}, 'deno': {}},
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['ios', 'android']
+                }
+            }
         }
 
         cookie = var.config.get('youtube_dl', 'cookie_file')
@@ -181,7 +187,13 @@ class URLItem(BaseItem):
                 'key': 'FFmpegThumbnailsConvertor',
                 'format': 'jpg',
                 'when': 'before_dl'
-            }]
+            }],
+            'js_runtimes': {'node': {}, 'deno': {}},
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['ios', 'android']
+                }
+            }
         }
 
         cookie = var.config.get('youtube_dl', 'cookie_file')
