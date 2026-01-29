@@ -65,7 +65,7 @@ class ReverseProxied(object):
 
 root_dir = os.path.dirname(__file__)
 web = Flask(__name__, template_folder=os.path.join(root_dir, "web/templates"))
-#web.config['TEMPLATES_AUTO_RELOAD'] = True
+web.config['TEMPLATES_AUTO_RELOAD'] = False
 log = logging.getLogger("bot")
 user = 'Remote Control'
 

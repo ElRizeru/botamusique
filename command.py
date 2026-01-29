@@ -716,14 +716,14 @@ def cmd_max_volume(bot, user, text, command, parameter):
 def cmd_ducking(bot, user, text, command, parameter):
     global log
 
-    if parameter == "" or parameter == "on":
+    if parameter == "on" or (parameter == "" and not bot.is_ducking):
         bot.is_ducking = True
         var.db.set('bot', 'ducking', True)
         bot.mumble.callbacks.sound_received.set_handler(bot.ducking_sound_received)
         log.info('cmd: ducking is on')
         msg = "Ducking on."
         bot.send_msg(msg, text)
-    elif parameter == "off":
+    elif parameter == "off" or (parameter == "" and bot.is_ducking):
         bot.is_ducking = False
         bot.mumble.callbacks.sound_received.clear_handler()
         var.db.set('bot', 'ducking', False)

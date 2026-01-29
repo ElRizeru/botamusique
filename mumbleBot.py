@@ -4,11 +4,16 @@ import re
 import threading
 import time
 import sys
+import struct
 import math
 import signal
 import configparser
-import numpy as np
+import struct
+import math
+import signal
+import configparser
 import subprocess as sp
+import array
 import argparse
 import os
 import os.path
@@ -430,10 +435,19 @@ class MumbleBot:
             ffmpeg_debug = "warning"
 
         channels = 2 if self.stereo else 1
-        self.pcm_buffer_size = 960 * channels
+        # 48kHz * 2 bytes * channels * 0.06s (60ms) approx 5760 bytes for stereo
+        self.pcm_buffer_size = 2880 * channels 
 
-        command = ("ffmpeg", '-v', ffmpeg_debug, '-nostdin', '-i',
-                   uri, '-ss', f"{start_from:f}", '-ac', str(channels), '-f', 's16le', '-ar', '48000', '-')
+        volume = self.volume_helper.plain_volume_set
+        
+        filter_complex = f"volume={volume:.2f}"
+        
+        command = ["ffmpeg", '-v', ffmpeg_debug, '-nostdin', '-i', uri]
+        
+        command.extend(['-filter:a', filter_complex])
+        
+        command.extend(['-ss', f"{start_from:f}", '-ac', str(channels), '-f', 's16le', '-ar', '48000', '-'])
+        
         self.log.debug("bot: execute ffmpeg command: " + " ".join(command))
 
         # The ffmpeg process is a thread
@@ -443,8 +457,10 @@ class MumbleBot:
             self.thread_stderr = os.fdopen(pipe_rd)
         else:
             pipe_rd, pipe_wd = None, None
-
-        self.thread = sp.Popen(command, stdout=sp.PIPE, stderr=pipe_wd, bufsize=self.pcm_buffer_size)
+            
+        # Increase internal buffer size for pipes
+        # 64KB - 128KB is reasonable.
+        self.thread = sp.Popen(command, stdout=sp.PIPE, stderr=pipe_wd, bufsize=64*1024)
 
     def async_download_next(self):
         # Function start if the next music isn't ready
@@ -507,24 +523,29 @@ class MumbleBot:
 
     # Main loop of the Bot
     def loop(self):
+        import io
+        
         while not self.exit and self.mumble.is_alive():
 
-            while self.thread and self.mumble.send_audio.get_buffer_size() > 0.5 and not self.exit:
-                # If the buffer isn't empty, I cannot send new music part, so I wait
-                self._loop_status = f'Wait for buffer {self.mumble.send_audio.get_buffer_size():.3f}'
-                time.sleep(0.01)
+            buffer_size = self.mumble.send_audio.get_buffer_size()
+            if self.thread and buffer_size > 0.5 and not self.exit:
+                 self._loop_status = f'Wait for buffer {buffer_size:.3f}'
+                 time.sleep(0.1)
+                 continue
 
             raw_music = None
             if self.thread:
-                # I get raw from ffmpeg thread
-                # move playhead forward
                 self._loop_status = 'Reading raw'
                 if self.song_start_at == -1:
                     self.song_start_at = time.time() - self.playhead
                 self.playhead = time.time() - self.song_start_at
-
-                raw_music = self.thread.stdout.read(self.pcm_buffer_size)
-                self.read_pcm_size += len(raw_music)
+                
+                try:
+                    raw_music = self.thread.stdout.read(self.pcm_buffer_size)
+                    self.read_pcm_size += len(raw_music)
+                except Exception as e:
+                     self.log.error(f"bot: Error reading from ffmpeg: {e}")
+                     raw_music = b''
 
                 if self.redirect_ffmpeg_log:
                     try:
@@ -537,16 +558,18 @@ class MumbleBot:
                 if raw_music:
                     # Adjust the volume and send it to mumble
                     self.volume_cycle()
+                    factor = self.volume_helper.real_volume
 
                     if not self.on_interrupting and len(raw_music) == self.pcm_buffer_size:
                         self.mumble.send_audio.add_sound(
-                            self._audio_mul(raw_music, self.volume_helper.real_volume))
+                             self._audio_mul(raw_music, factor))
                     elif self.read_pcm_size == 0:
+                        # Fadeout uses struct, which is fine
                         self.mumble.send_audio.add_sound(
-                            self._audio_mul(self._fadeout(raw_music, self.stereo, fadein=True), self.volume_helper.real_volume))
+                            self._audio_mul(self._fadeout(raw_music, self.stereo, fadein=True), factor))
                     elif self.on_interrupting or len(raw_music) < self.pcm_buffer_size:
                         self.mumble.send_audio.add_sound(
-                            self._audio_mul(self._fadeout(raw_music, self.stereo, fadein=False), self.volume_helper.real_volume))
+                            self._audio_mul(self._fadeout(raw_music, self.stereo, fadein=False), factor))
                         self.thread.kill()
                         self.thread = None
                         time.sleep(0.1)
@@ -656,25 +679,39 @@ class MumbleBot:
                 self.on_ducking = True
             self.ducking_release = time.time() + 1  # ducking release after 1s
 
+
+
     @staticmethod
     def _audio_mul(data: bytes, factor: float) -> bytes:
-        # Convert bytes to numpy array of 16-bit signed integers
-        samples = np.frombuffer(data, dtype=np.int16).astype(np.float32)
-        # Apply volume factor
-        samples = samples * factor
-        # Clip to prevent overflow and convert back to int16
-        samples = np.clip(samples, -32768, 32767).astype(np.int16)
-        return samples.tobytes()
+        if factor == 1.0:
+            return data
+        if factor == 0.0:
+             return bytes(len(data))
+             
+        arr = array.array('h', data)
+        clamped = [int(max(min(x * factor, 32767), -32768)) for x in arr]
+        return array.array('h', clamped).tobytes()
 
     @staticmethod
     def _audio_rms(data: bytes) -> int:
         if len(data) == 0:
             return 0
-        # Convert bytes to numpy array of 16-bit signed integers
-        samples = np.frombuffer(data, dtype=np.int16).astype(np.float64)
-        # Calculate RMS: sqrt(mean(samples^2))
-        rms = np.sqrt(np.mean(samples ** 2))
-        return int(rms)
+            
+        count = len(data) // 2
+        if count == 0:
+            return 0
+            
+        # Iterate over 16-bit samples
+        sum_squares = 0.0
+        
+        format_str = "<" + "h" * count
+        try:
+            samples = struct.unpack(format_str, data)
+        except struct.error:
+            return 0
+            
+        sum_squares = sum(s*s for s in samples)
+        return int(math.sqrt(sum_squares / count))
 
     def _fadeout(self, _pcm_data, stereo=False, fadein=False):
         pcm_data = bytearray(_pcm_data)
@@ -786,7 +823,7 @@ def start_web_interface(addr, port):
     werkzeug_logger.addHandler(handler)
 
     interface.init_proxy()
-    interface.web.env = 'development'
+    interface.web.env = 'production'
     interface.web.secret_key = var.config.get('webinterface', 'flask_secret')
     interface.web.run(port=port, host=addr)
 

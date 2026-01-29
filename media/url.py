@@ -3,11 +3,10 @@ import logging
 import os
 import hashlib
 import traceback
-from PIL import Image
-import yt_dlp as youtube_dl
 import glob
 from io import BytesIO
 import base64
+
 
 import util
 from constants import tr_cli as tr
@@ -125,10 +124,12 @@ class URLItem(BaseItem):
             return True
 
     def _get_info_from_url(self):
+        import yt_dlp as youtube_dl
         self.log.info("url: fetching metadata of url %s " % self.url)
         ydl_opts = {
             'noplaylist': True,
             'js_runtimes': {'node': {}, 'deno': {}},
+
             'extractor_args': {
                 'youtube': {
                     'player_client': ['ios', 'android']
@@ -176,6 +177,7 @@ class URLItem(BaseItem):
         self.ready = "preparing"
 
         self.log.info("bot: downloading url (%s) %s " % (self.title, self.url))
+        import yt_dlp as youtube_dl
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': base_path,
@@ -236,10 +238,12 @@ class URLItem(BaseItem):
 
     def _read_thumbnail_from_file(self, path_thumbnail):
         if os.path.isfile(path_thumbnail):
+            from PIL import Image
             im = Image.open(path_thumbnail)
             self.thumbnail = self._prepare_thumbnail(im)
 
     def _prepare_thumbnail(self, im):
+        from PIL import Image
         im.thumbnail((100, 100), Image.LANCZOS)
         buffer = BytesIO()
         im = im.convert('RGB')

@@ -279,6 +279,15 @@ class SettingsDatabase:
 class MusicDatabase:
     def __init__(self, db_path):
         self.db_path = db_path
+        self._init_pragmas()
+
+    def _init_pragmas(self):
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL;")
+        cursor.execute("PRAGMA synchronous=NORMAL;")
+        conn.commit()
+        conn.close()
 
     def insert_music(self, music_dict, _conn=None):
         conn = sqlite3.connect(self.db_path) if _conn is None else _conn

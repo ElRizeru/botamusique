@@ -3,9 +3,6 @@ import re
 from io import BytesIO
 import base64
 import hashlib
-import mutagen
-from PIL import Image
-
 import util
 import variables as var
 from media.item import BaseItem, item_builders, item_loaders, item_id_generators, ValidationFailedError
@@ -88,6 +85,10 @@ class FileItem(BaseItem):
         file_name, ext = os.path.splitext(file_name_ext)
 
         assert path is not None and file_name is not None
+        import mutagen
+        import mutagen.flac
+        from PIL import Image
+        from io import BytesIO
 
         try:
             im = None
@@ -183,6 +184,7 @@ class FileItem(BaseItem):
 
     @staticmethod
     def _prepare_thumbnail(im):
+        from PIL import Image
         im.thumbnail((100, 100), Image.LANCZOS)
         buffer = BytesIO()
         im = im.convert('RGB')

@@ -6,7 +6,6 @@ mutagen
 requests
 packaging
 pyradios
-numpy
 protobuf
 pycryptodome
 opuslib

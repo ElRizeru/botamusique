@@ -18,15 +18,25 @@ class ItemNotCachedError(Exception):
     pass
 
 
-class MusicCache(dict):
-    def __init__(self, db: MusicDatabase):
+from collections import OrderedDict
+
+class MusicCache(OrderedDict):
+    def __init__(self, db: MusicDatabase, max_size=500):
         super().__init__()
         self.db = db
         self.log = logging.getLogger("bot")
         self.dir_lock = threading.Lock()
+        self.max_size = max_size
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        self.move_to_end(key)
+        if len(self) > self.max_size:
+            self.popitem(last=False)
 
     def get_item_by_id(self, id):
         if id in self:
+            self.move_to_end(id)
             return self[id]
 
         # if not cached, query the database
@@ -49,6 +59,7 @@ class MusicCache(dict):
             id = item_id_generators[kwargs['type']](**kwargs)
 
         if id in self:
+            self.move_to_end(id)
             return self[id]
 
         # if not cached, query the database
