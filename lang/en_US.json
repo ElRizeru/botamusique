@@ -46,6 +46,7 @@
         "page_instruction": "Page {current}/{total}. Use <i>!{command} {{page}}</i> to navigate.",
         "paused": "Music paused.",
         "playlist_fetching_failed": "Unable to fetch the playlist!",
+        "playlist_limit_reached": "The playlist is longer than {limit} tracks, it has been truncated.",
         "pm_not_allowed": "Private message aren't allowed.",
         "position_in_the_queue": "Position: {position}",
         "preconfigurated_radio": "Preconfigurated Radio available:",

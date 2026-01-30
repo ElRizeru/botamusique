@@ -432,6 +432,13 @@ def cmd_play_playlist(bot, user, text, command, parameter):
             
         if count == 0:
             bot.send_msg(tr("playlist_fetching_failed"), text)
+        else:
+            bot.send_msg(tr("multiple_file_added"), text)
+            if count >= var.config.getint('bot', 'max_track_playlist'):
+                bot.send_msg(tr("playlist_limit_reached", limit=var.config.getint('bot', 'max_track_playlist')), text)
+
+            if len(var.playlist) == count:
+                bot.play(0)
     else:
         bot.send_msg(tr('bad_parameter', command=command), text)
 
@@ -784,8 +791,7 @@ def cmd_last(bot, user, text, command, parameter):
     global log
 
     if len(var.playlist) > 0:
-        bot.interrupt()
-        var.playlist.point_to(len(var.playlist) - 1 - 1)
+        bot.play(len(var.playlist) - 1)
     else:
         bot.send_msg(tr('queue_empty'), text)
 
