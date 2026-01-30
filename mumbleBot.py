@@ -904,6 +904,7 @@ if __name__ == '__main__':
 
     bot_logger = logging.getLogger("bot")
     bot_logger.setLevel(logging.INFO)
+    bot_logger.propagate = False
 
     if args.verbose:
         bot_logger.setLevel(logging.DEBUG)
@@ -925,7 +926,7 @@ if __name__ == '__main__':
 
     util.set_logging_formatter(handler, bot_logger.level)
     bot_logger.addHandler(handler)
-    logging.getLogger("root").addHandler(handler)
+    logging.getLogger().addHandler(handler)
     var.bot_logger = bot_logger
 
     # ======================
